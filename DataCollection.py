@@ -62,6 +62,8 @@ class DataCollection:
                         str(new_vel_y) + "," + \
                         str(new_vel_x) + "\n"
 
+        print('input_row =', input_row)
+
         # save comma separated row in the file
         self.buffer.append(status_row)
 

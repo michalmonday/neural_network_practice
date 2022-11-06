@@ -28,18 +28,22 @@ class Neuron:
 		self.activation_function = activation_function
 
 	def activate(self, prev_layer):
+		''' Calculate activation value of the neuron based on activation
+		values of neurons in the previous layer and their corresponding weights. '''
+		#import pdb; pdb.set_trace()
 		sum_of_products = sum( prev_layer.neurons[i].activation_value * self.weights[i] for i in range(len(self.weights)) )
+		
+		#sum_of_products = sum( self.multiply_weights(prev_layer) )
 		if self.activation_function is not None:
 			self.activation_value = self.activation_function(sum_of_products)
 		else:
 			self.activation_value = sum_of_products
 
-	def update_weight(self):
-		pass
+	def update_weights(self):
+		''' Method used to update weights after backward propagation is finished.
+		Weights couldn't be updated immediately because they are used to calculate
+		errors of neurons in the previous layers. '''
+		self.weights = list(self.new_weights)
 
-	def multiply_weights(self, next_neuron_weight):
-		# forward propagation to the next layer
-		return self.activation_value * next_neuron_weight
-
-	def forward_propagation(self, previous_neurons_value):
-		pass
+	def multiply_weights(self, prev_layer):
+		return [ neuron.activation_value * weight for neuron, weight in zip(prev_layer.neurons, self.weights) ]

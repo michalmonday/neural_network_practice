@@ -3,12 +3,12 @@ from Layer import Layer
 import math
 
 def rounded_sigmoid(sum_of_products, lambda_=0.8):
-    # Created just to make results more similar to provided example where
-    # numbers were rounded on purpose for easier presentation on paper.
+    ''' Created just to make results more similar to provided example where
+    numbers were rounded on purpose for easier presentation on paper. '''
     return round(1 / (1 + math.exp(-lambda_*sum_of_products)), 2)
 
 def sigmoid(sum_of_products, lambda_=0.8):
-    return 1 / (1 + math.exp(-LAMBDA*sum_of_products))
+    return 1 / (1 + math.exp(-lambda_*sum_of_products))
 
 def linear(sum_of_products):
     return sum_of_products
@@ -25,12 +25,32 @@ def show_network(layers):
     print('\n')
 
 def cost(results, observations):
-    # results are predicted values
+    ''' The purpose of cost function is to measure how good the network is at predicting. 
+    The lower the cost, the better the network is at predicting. We can use this value to
+    decide when to stop training the network. '''
     c = 0
     for r, o in zip(results, observations):
-        c += o - r
-    return c
+        # abs is used to make sure that the cost is always positive
+        # otherwise a positive error would cancel out a negative error
+        # (e.g. if one output neuron error is -2 and the other is +2, 
+        # the total error would be 0 instead of 4)
+        c += abs(o - r)
+    return c 
 
+## binary cross entropy cost function
+#def binary_cross_entropy_cost(results, observations):
+#    # https://stats.stackexchange.com/questions/154879/a-list-of-cost-functions-used-in-neural-networks-alongside-applications
+#    c = 0
+#    for r, o in zip(results, observations):
+#        c += (o * math.log(r) + (1 - o) * math.log(1 - r))
+#    return c
+#
+## quadratic cost function
+#def quadratic_cost(results, observations):
+#    c = 0
+#    for r, o in zip(results, observations):
+#        c += (o - r)**2
+#    return c / 2
 
 class NeuralNetHolder:
     '''  x[0] = first input value to the first layer (e.g. integer or float)
@@ -41,11 +61,23 @@ class NeuralNetHolder:
          y = all last layer outputs (a list)
          Y = multiple examples of last layer outputs (list of lists)
          '''
-    def __init__(self, learning_rate=0.8, momentum=0.1):
+    def __init__(self, learning_rate=0.8, momentum=0.1):#, layer_sizes=[1, 2, 2], neuron_weights_values=[[], [[0.6, 0.7], [0.8, 0.8]], [[0.4, 0.5, 0.6], [0.5, 0.7, 0.9]]]):
         super().__init__()
 
         self.learning_rate = learning_rate
         self.momentum = momentum
+
+#        self.layers = []
+#        for i, layer_size in enumerate(layer_sizes):
+#            if i == 0:
+#                # input layer
+#                layer = Layer(prev_neurons_count=0, neurons_count=layer_size, add_bias=True)
+#            elif i == len(layer_sizes)-1:
+#                # output layer
+#                layer = Layer(prev_neurons_count=layer_sizes[i-1]+1, neurons_count=layer_size, add_bias=False, activation_function=linear, neurons_weights_values=neuron_weights_values[i])
+#            else:
+#                layer = Layer(prev_neurons_count=layer_sizes[i-1]+1, neurons_count=layer_size, add_bias=True, activation_function=sigmoid, neurons_weights_values=neuron_weights_values[i])
+#            self.layers.append(layer)
 
         # neurons_count is the number of neurons excluding the bias neuron
         # prev_neurons_count is the number of neurons in the previous layer including the bias
@@ -54,7 +86,7 @@ class NeuralNetHolder:
             Layer(prev_neurons_count=0, neurons_count=1, add_bias=True), 
 
             # hidden layer
-            Layer(prev_neurons_count=2, neurons_count=2, add_bias=True, activation_function=rounded_sigmoid, neurons_weights_values=[
+            Layer(prev_neurons_count=2, neurons_count=2, add_bias=True, activation_function=sigmoid, neurons_weights_values=[
                 [0.6, 0.7], # hidden layer, 1st node weights
                 [0.8, 0.8]  # hidden layer, 2nd node weights
             ]),
@@ -149,31 +181,39 @@ class NeuralNetHolder:
         # WRITE CODE TO PROCESS INPUT ROW AND PREDICT X_Velocity and Y_Velocity
         return self.forward_propagation(x)
 
-
 if __name__ == '__main__':
+    import csv
     import matplotlib.pyplot as plt
-    X = [
-        (2,), 
-        (3,)  
 
-        #(346.56857844293313,307.1),
-        #(346.56857844293313,307.1),
-        #(346.52857844293317,307.20000000000005),
-        #(346.52857844293317,307.40000000000003)
-    ]
+    USE_CSV = False
+    def read_csv():
+        X, Y = [], []
+        with open('ce889_dataCollection.csv', 'r') as f:
+            reader = csv.reader(f)
+            data = list(reader)
+        for row in data:
+            X.append([float(row[0]), float(row[1])])
+            Y.append([float(row[2]), float(row[3])]) 
+        return X, Y
 
-    Y = [
-        (3,2), 
-        (4,3)
 
-        # (0.0,0.0),
-        # (-0.1,0.04000000000000001),
-        # (-0.2,0.0),
-        # (-0.30000000000000004,0.04000000000000001)
-    ]
+    if USE_CSV:
+        # in this case the input layer will have 2 neurons and hidden layer will have 3 previous neurons
+        X, Y = read_csv()
+    else:
+        # in this case the input layer will have 1 neuron and hidden layer will have 2 previous neurons
+        X = [
+            (2,),
+            (3,)  
+        ]
+        Y = [
+            (3,2),
+            (4,3)
+        ]
 
-    nn = NeuralNetHolder(learning_rate=0.8, momentum=0.1)
-    costs = nn.train(X, Y, epochs=100)
+    # import pdb; pdb.set_trace()
+    nn = NeuralNetHolder(learning_rate=0.1, momentum=0.1)
+    costs = nn.train(X, Y, epochs=30)
     # plot costs
     plt.plot(costs)
     plt.show()

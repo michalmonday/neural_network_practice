@@ -34,8 +34,9 @@ def cost(results, observations):
         # otherwise a positive error would cancel out a negative error
         # (e.g. if one output neuron error is -2 and the other is +2, 
         # the total error would be 0 instead of 4)
-        c += abs(o - r)
-    return c 
+        #c += abs(o - r)
+        c += (o - r) **2 
+    return c /2
 
 ## binary cross entropy cost function
 #def binary_cross_entropy_cost(results, observations):
@@ -83,10 +84,10 @@ class NeuralNetHolder:
         # prev_neurons_count is the number of neurons in the previous layer including the bias
         self.layers = [ 
             # input layer
-            Layer(prev_neurons_count=0, neurons_count=1, add_bias=True), 
+            Layer(prev_neurons_count=0, neurons_count=2, add_bias=True), 
 
             # hidden layer
-            Layer(prev_neurons_count=2, neurons_count=2, add_bias=True, activation_function=sigmoid, neurons_weights_values=[
+            Layer(prev_neurons_count=3, neurons_count=2, add_bias=True, activation_function=sigmoid, neurons_weights_values=[
                 [0.6, 0.7], # hidden layer, 1st node weights
                 [0.8, 0.8]  # hidden layer, 2nd node weights
             ]),
@@ -170,10 +171,10 @@ class NeuralNetHolder:
                 self.backward_propagation(y)
                 #errors = [ o - r for r,o in zip(results, y) ]
 
-                print('results =', results)
+                #print('results =', results)
                 # print('y =', y)
                 #print('errors =', errors)
-                epoch_cost += cost(results, y)
+                epoch_cost += cost(results, y) / len(X)
             costs.append(epoch_cost)
         return costs
     
@@ -185,7 +186,20 @@ if __name__ == '__main__':
     import csv
     import matplotlib.pyplot as plt
 
-    USE_CSV = False
+    USE_CSV = True
+        
+    # preprocess X,Y data
+    def preprocess_data(X, Y):
+        dividers = [0 for _ in range(len(X[0]))]
+        for x in X:
+            for i, x_i in enumerate(x):
+                dividers[i] = max(dividers[i], abs(x_i))
+        for i, x in enumerate(X):
+            for j, x_i in enumerate(x):
+                X[i][j] = x_i / dividers[j]
+        return X, Y
+        
+
     def read_csv():
         X, Y = [], []
         with open('ce889_dataCollection.csv', 'r') as f:
@@ -200,22 +214,23 @@ if __name__ == '__main__':
     if USE_CSV:
         # in this case the input layer will have 2 neurons and hidden layer will have 3 previous neurons
         X, Y = read_csv()
+        X, Y = preprocess_data(X, Y)
     else:
         # in this case the input layer will have 1 neuron and hidden layer will have 2 previous neurons
         X = [
-            (2,),
-            (3,)  
+            (2,)#,
+            #(3,)  
         ]
         Y = [
-            (3,2),
-            (4,3)
+            (3,2)#,
+            #(4,3)
         ]
 
     # import pdb; pdb.set_trace()
-    nn = NeuralNetHolder(learning_rate=0.1, momentum=0.1)
-    costs = nn.train(X, Y, epochs=30)
+    nn = NeuralNetHolder(learning_rate=0.02, momentum=0.1)
+    costs = nn.train(X, Y, epochs=40)
     # plot costs
     plt.plot(costs)
     plt.show()
 
-    print( nn.predict([1]) )
+    #print( nn.predict([1]) )

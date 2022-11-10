@@ -4,6 +4,13 @@ import math
 import json
 import numpy as np
 from copy import deepcopy
+import tensorflow as tf
+import numpy as np
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Flatten
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Activation
+
 
 # tanh
 def tanh(sum_of_products):
@@ -119,12 +126,18 @@ class NeuralNetHolder:
            Layer(prev_neurons_count=0, neurons_count=2, add_bias=True), 
 
            # hidden layer
-           Layer(prev_neurons_count=3, neurons_count=12, add_bias=True, activation_function=sigmoid),
+           #Layer(prev_neurons_count=3, neurons_count=33, add_bias=True, activation_function=sigmoid),
+           Layer(prev_neurons_count=3, neurons_count=24, add_bias=True, activation_function=tanh),
 
            # output layer
-           Layer(prev_neurons_count=13, neurons_count=2, add_bias=False, activation_function=linear)
+           Layer(prev_neurons_count=25, neurons_count=2, add_bias=False, activation_function=linear)
            ]
         self.LAST_LAYER_INDEX = len(self.layers) - 1
+
+
+        # load keras model from filename
+        #self.model = tf.keras.models.load_model('model.h5')    
+
 
     def forward_propagation(self, x):
         ''' Forward propagation is the process of calculating the output of each neuron in the network.
@@ -202,7 +215,7 @@ class NeuralNetHolder:
         # X = self.min_max_normalization(deepcopy(X), x_mins, x_maxs)
         # Y = self.min_max_normalization(deepcopy(Y), y_mins, y_maxs)
         X = self.normalize(X, x_means, x_stds)
-        #Y = self.normalize(Y, y_means, y_stds)
+        Y = self.normalize(Y, y_means, y_stds)
         #self.normalization_parameters = {'x_mins': x_mins.tolist(), 'x_maxs': x_maxs.tolist(), 'y_mins': y_mins.tolist(), 'y_maxs': y_maxs.tolist()}
         self.normalization_parameters = {'x_means': x_means.tolist(), 'x_stds': x_stds.tolist(), 'y_means': y_means.tolist(), 'y_stds': y_stds.tolist()}
         costs = []
@@ -212,8 +225,8 @@ class NeuralNetHolder:
             for i, (x, y, y_orig) in enumerate(zip(X, Y, Y_orig)):
                 # results = self.forward_propagation(x)
                 y_pred = self.forward_propagation(x)
-                results = y_pred
-                #results = self.unnormalize(y_pred, y_means, y_stds)
+                results = self.unnormalize(y_pred, y_means, y_stds)
+                #print('results', results)
                 errors = [ o - r for r,o in zip(results, y) ]
                 self.backward_propagation(y)
 
@@ -232,6 +245,11 @@ class NeuralNetHolder:
         return costs
     
     def predict(self, x, verbose=True):
+        ''' Order of data collectio Y is: vertical velocity at index 2 and horizontal velocity at index 3
+            BUT: order of data collection X is: horizontal velocity at index 0 and vertical velocity at index 1. 
+            It's almost like a trap for students to see if they can read the code... 
+            '''
+
         # WRITE CODE TO PROCESS INPUT ROW AND PREDICT X_Velocity and Y_Velocity
         # [
         #  x_dist,  - high value means goal is on the right
@@ -239,22 +257,26 @@ class NeuralNetHolder:
         #  y_speed, - high value means spaceship is moving down
         #  x_speed  - high value means spaceship is moving right
         # ]
+
         if type(x) == str:
             x = [float(x_) for x_ in x.split(',')]
             print('x = ', x)
-            # import pdb; pdb.set_trace() 
         #return [0.1, 0.2]
+        #y = self.model.predict(np.array([x]))[0].tolist()
+        #return y
         x_normalized = self.normalize([x], np.array(self.normalization_parameters['x_means']), np.array(self.normalization_parameters['x_stds']))[0]
         # import pdb; pdb.set_trace()
         # x_normalized = self.min_max_normalization([x], np.array(self.normalization_parameters['x_mins']), np.array(self.normalization_parameters['x_maxs']))[0]
         y_normalized = self.forward_propagation(x_normalized)
         #y = self.min_max_unnormalization(y_normalized, self.normalization_parameters['y_mins'], self.normalization_parameters['y_maxs'])
-        #y = self.unnormalize([y_normalized], self.normalization_parameters['y_means'], self.normalization_parameters['y_stds'])[0]
-        # if verbose:
-        #     print('x =', x, 'x_normalized =', x_normalized)
-        #     print('y =', y, 'y_normalized =', y_normalized)
+        y = self.unnormalize([y_normalized], self.normalization_parameters['y_means'], self.normalization_parameters['y_stds'])[0]
+        if verbose:
+            print('x =', x, 'x_normalized =', x_normalized)
+            print('y =', y, 'y_normalized =', y_normalized)
         # print('y =', y)
-        return y_normalized
+        return y
+        
+        #return list(reversed(y))
     
     def load_weights_from_file(self, filename='weights.txt'):
         with open(filename, 'r') as f:
@@ -325,6 +347,7 @@ if __name__ == '__main__':
     import csv
     import matplotlib.pyplot as plt
 
+
     USE_CSV = True
 
     def shuffle_data(X, Y):
@@ -373,11 +396,52 @@ if __name__ == '__main__':
             #(4,3)
         ]
 
+    # X = np.array(X)
+    # Y = np.array(Y)
+    # print("Feature matrix:", X.shape)
+    # print("Feature matrix:", Y.shape)
+    # #import pdb; pdb.set_trace()
+
+    def normalize_data_tensorflow(X, Y):
+        # normalize data
+        x_means = X.mean(axis=0)
+        y_means = Y.mean(axis=0)
+        x_stds = X.std(axis=0)
+        y_stds = Y.std(axis=0)
+        X = (X - x_means) / x_stds
+        Y = (Y - y_means) / y_stds
+
+        return X, Y
+
+    # normalize X,Y
+
+    #model = Sequential([
+    #    # dense layer 1
+    #    Dense(20, activation='sigmoid', bias_initializer='random_uniform', kernel_initializer='random_uniform' , input_shape=(2,), use_bias=True),
+
+    #    # output layer
+    #    Dense(2, activation='linear', bias_initializer='random_uniform', kernel_initializer='random_uniform', use_bias=True),  
+    #])
+    #model.compile(optimizer='adam',
+    #          loss='mean_squared_error',
+    #          metrics=['accuracy'])
+
+    #model.fit(X, Y, epochs=1000, 
+    #      batch_size=5000, 
+    #      validation_split=0.2)
+    #results = model.evaluate(X,  Y, verbose = 0)
+    #model.save('model.h5')
+    #import pdb; pdb.set_trace()
+    #print('test loss, test acc:', results)
+
+    #exit()
+
     # import pdb; pdb.set_trace()
-    nn = NeuralNetHolder(learning_rate=0.01, momentum=0.1)
+    nn = NeuralNetHolder(learning_rate=0.04, momentum=0.05)
+
     # nn.load_weights_from_file(filename='weights.json')
     # import pdb; pdb.set_trace()
-    costs = nn.train(deepcopy(X), deepcopy(Y), epochs=110) # 401
+    costs = nn.train(deepcopy(X), deepcopy(Y), epochs=100) # 401
 
     with open('predictions.txt', 'w') as f:
         for x in X:

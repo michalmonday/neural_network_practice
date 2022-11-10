@@ -59,8 +59,8 @@ class DataCollection:
                         str(turning[0]) + "," + str(turning[1]) + "\n"
         else:
             status_row = input_row + "," + \
-                        str(new_vel_y) + "," + \
-                        str(new_vel_x) + "\n"
+                        str(new_vel_x) + "," + \
+                        str(new_vel_y) + "\n"
 
         print('input_row =', input_row)
 

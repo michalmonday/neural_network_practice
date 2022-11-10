@@ -152,7 +152,7 @@ class GameLoop:
                             self.controller.set_left(True)
                         
                         # avoid infinite turning, limit max angle
-                        print("current status controller: ", self.controller.up, " -- ", self.controller.left, " -- ", self.controller.right)
+                        print("current status controller: up=", self.controller.up, " -- left=", self.controller.left, " -- right=", self.controller.right)
                         print("current status lander: ", self.lander.velocity.y, " -- ", self.lander.velocity.x, " -- ", self.lander.velocity.y > nn_prediction[1], " -- ", self.lander.velocity.x < nn_prediction[0], " -- ", self.lander.velocity.y - nn_prediction[1])
                         if (self.lander.current_angle > 30 and self.lander.current_angle < 330):
                             ang_val = (self.lander.current_angle - 30)/(330-30)

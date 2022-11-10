@@ -21,7 +21,9 @@ class GameLoop:
         self.fps = 60
 
         self.neuralnet = NeuralNetHolder(learning_rate=0.01, momentum=0.1)
-        self.neuralnet.train(X, Y, epochs=100)
+        self.neuralnet.load_weights_from_file(filename="weights.json")
+        self.neuralnet.load_normalization_parameters(filename="normalization_parameters.json")
+        #self.neuralnet.train(X, Y, epochs=100)
         self.version = "v1.01"
         self.prediction_cycle = 0
 

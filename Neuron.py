@@ -10,7 +10,7 @@ class Neuron:
 		# weights_count is the number of neurons in previous layer
 		self.activation_value = activation_value
 		if weights_values is None:
-			self.weights = [ random.uniform(0, 1) for _ in range(weights_count) ]
+			self.weights = [ -0.5 + random.uniform(0, 1) for _ in range(weights_count) ]
 		else:
 			self.weights = list(weights_values)
 		self.is_bias = is_bias
@@ -31,7 +31,14 @@ class Neuron:
 		''' Calculate activation value of the neuron based on activation
 		values of neurons in the previous layer and their corresponding weights. '''
 		#import pdb; pdb.set_trace()
-		sum_of_products = sum( prev_layer.neurons[i].activation_value * self.weights[i] for i in range(len(self.weights)) )
+		# for i in range(len(self.weights)):
+		# 	print(f'prev_layer.neurons[{i}].activation_value =', prev_layer.neurons[i].activation_value)
+		# 	print(f'self.weights[{i}] =', self.weights[i])
+
+		try:
+			sum_of_products = sum( (prev_layer.neurons[i].activation_value * self.weights[i]) for i in range(len(self.weights)) )
+		except:
+			import pdb; pdb.set_trace()
 		
 		#sum_of_products = sum( self.multiply_weights(prev_layer) )
 		if self.activation_function is not None:
@@ -39,11 +46,14 @@ class Neuron:
 		else:
 			self.activation_value = sum_of_products
 
-	def update_weights(self):
+	def update_weights(self, epsilon_regularisation=0.0):
 		''' Method used to update weights after backward propagation is finished.
 		Weights couldn't be updated immediately because they are used to calculate
 		errors of neurons in the previous layers. '''
-		self.weights = list(self.new_weights)
+		if epsilon_regularisation > 0:
+			self.weights = [ (1 - epsilon_regularisation) * weight for weight in self.new_weights ]
+		else:
+			self.weights = list(self.new_weights)
 
 	def multiply_weights(self, prev_layer):
 		return [ neuron.activation_value * weight for neuron, weight in zip(prev_layer.neurons, self.weights) ]

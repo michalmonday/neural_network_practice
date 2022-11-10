@@ -1,6 +1,13 @@
 #from Neuron import Neuron
 from Layer import Layer
 import math
+import json
+import numpy as np
+from copy import deepcopy
+
+# tanh
+def tanh(sum_of_products):
+    return math.tanh(sum_of_products)
 
 def rounded_sigmoid(sum_of_products, lambda_=0.8):
     ''' Created just to make results more similar to provided example where
@@ -34,9 +41,17 @@ def cost(results, observations):
         # otherwise a positive error would cancel out a negative error
         # (e.g. if one output neuron error is -2 and the other is +2, 
         # the total error would be 0 instead of 4)
-        #c += abs(o - r)
+        c += abs(o - r)
+        #c += (o - r) **2 
+    return c 
+    #return c /2
+
+# root mean squared error
+def cost2(results, observations):
+    c = 0
+    for r, o in zip(results, observations):
         c += (o - r) **2 
-    return c /2
+    return math.sqrt(c / len(results))
 
 ## binary cross entropy cost function
 #def binary_cross_entropy_cost(results, observations):
@@ -82,22 +97,33 @@ class NeuralNetHolder:
 
         # neurons_count is the number of neurons excluding the bias neuron
         # prev_neurons_count is the number of neurons in the previous layer including the bias
+        #self.layers = [ 
+        #    # input layer
+        #    Layer(prev_neurons_count=0, neurons_count=2, add_bias=True), 
+
+        #    # hidden layer
+        #    Layer(prev_neurons_count=3, neurons_count=2, add_bias=True, activation_function=sigmoid, neurons_weights_values=[
+        #        [0.6, 0.7], # hidden layer, 1st node weights
+        #        [0.8, 0.8]  # hidden layer, 2nd node weights
+        #    ]),
+
+        #    # output layer
+        #    Layer(prev_neurons_count=3, neurons_count=2, add_bias=False, activation_function=linear, neurons_weights_values=[
+        #        [0.4, 0.5, 0.5], # output layer, 1st node weights
+        #        [0.5, 0.7, 0.9]  # output layer, 2nd node weights
+        #    ])
+        #    ]
+
         self.layers = [ 
-            # input layer
-            Layer(prev_neurons_count=0, neurons_count=2, add_bias=True), 
+           # input layer
+           Layer(prev_neurons_count=0, neurons_count=2, add_bias=True), 
 
-            # hidden layer
-            Layer(prev_neurons_count=3, neurons_count=2, add_bias=True, activation_function=sigmoid, neurons_weights_values=[
-                [0.6, 0.7], # hidden layer, 1st node weights
-                [0.8, 0.8]  # hidden layer, 2nd node weights
-            ]),
+           # hidden layer
+           Layer(prev_neurons_count=3, neurons_count=12, add_bias=True, activation_function=sigmoid),
 
-            # output layer
-            Layer(prev_neurons_count=3, neurons_count=2, add_bias=False, activation_function=linear, neurons_weights_values=[
-                [0.4, 0.5, 0.5], # output layer, 1st node weights
-                [0.5, 0.7, 0.9]  # output layer, 2nd node weights
-            ])
-            ]
+           # output layer
+           Layer(prev_neurons_count=13, neurons_count=2, add_bias=False, activation_function=linear)
+           ]
         self.LAST_LAYER_INDEX = len(self.layers) - 1
 
     def forward_propagation(self, x):
@@ -143,7 +169,7 @@ class NeuralNetHolder:
                 # last layer error is measured by the difference between prediction and observation
                 # for other layers, error is measured using the sum of errors (multiplied by weights) of neurons in the next layer
                 if i == self.LAST_LAYER_INDEX:
-                    neuron.error = y[j] - neuron.activation_value
+                    neuron.error = y[j] - neuron.activation_value 
                 else:
                     neuron.error =  self.learning_rate * neuron.activation_value * (1-neuron.activation_value) * sum(n.weights[j] * n.error for n in self.layers[i+1].neurons)
                 
@@ -157,37 +183,157 @@ class NeuralNetHolder:
         # Latch all neurons weights
         for i in range(len(self.layers)-1, 0, -1):
             for neuron in self.layers[i].neurons:
-                neuron.update_weights() #neuron.weights = list(neuron.new_weights)
+                neuron.update_weights(epsilon_regularisation=0.001) #neuron.weights = list(neuron.new_weights)
 
 
     def train(self, X, Y, epochs=1):
 
+        # x_mins = np.min(X, axis=0)
+        # x_maxs = np.max(X, axis=0)
+        # y_mins = np.min(Y, axis=0)
+        # y_maxs = np.max(Y, axis=0)
+
+        x_means = np.mean(X, axis=0)
+        x_stds = np.std(X, axis=0)
+        y_means = np.mean(Y, axis=0)
+        y_stds = np.std(Y, axis=0)
+        X_orig = deepcopy(X)
+        Y_orig = deepcopy(Y)
+        # X = self.min_max_normalization(deepcopy(X), x_mins, x_maxs)
+        # Y = self.min_max_normalization(deepcopy(Y), y_mins, y_maxs)
+        X = self.normalize(X, x_means, x_stds)
+        #Y = self.normalize(Y, y_means, y_stds)
+        #self.normalization_parameters = {'x_mins': x_mins.tolist(), 'x_maxs': x_maxs.tolist(), 'y_mins': y_mins.tolist(), 'y_maxs': y_maxs.tolist()}
+        self.normalization_parameters = {'x_means': x_means.tolist(), 'x_stds': x_stds.tolist(), 'y_means': y_means.tolist(), 'y_stds': y_stds.tolist()}
         costs = []
         # epoch is a single pass through the entire training dataset
         for epoch_index in range(epochs):
             epoch_cost = 0
-            for i, (x, y) in enumerate(zip(X, Y)):
-                results = self.forward_propagation(x)
+            for i, (x, y, y_orig) in enumerate(zip(X, Y, Y_orig)):
+                # results = self.forward_propagation(x)
+                y_pred = self.forward_propagation(x)
+                results = y_pred
+                #results = self.unnormalize(y_pred, y_means, y_stds)
+                errors = [ o - r for r,o in zip(results, y) ]
                 self.backward_propagation(y)
-                #errors = [ o - r for r,o in zip(results, y) ]
 
-                #print('results =', results)
+                # print('results =', results)
                 # print('y =', y)
-                #print('errors =', errors)
-                epoch_cost += cost(results, y) / len(X)
+                # print('errors =', errors)
+                # print('self.predict(x) =', self.predict(X_orig[i]))
+                epoch_cost += abs(cost(results, y_orig) / len(X))
+                # print('cost =', cost(results, y_orig))
+            if epoch_index > 1 and epoch_cost > costs[-1]:
+                self.learning_rate *= 0.8
+            print(f'{epoch_index+1}. cost =', epoch_cost)
             costs.append(epoch_cost)
+            #print(f'{epoch_index}, ', end='')
+        # import pdb; pdb.set_trace()
         return costs
     
-    def predict(self, x):
+    def predict(self, x, verbose=True):
         # WRITE CODE TO PROCESS INPUT ROW AND PREDICT X_Velocity and Y_Velocity
-        return self.forward_propagation(x)
+        # [
+        #  x_dist,  - high value means goal is on the right
+        #  y_dist,  - high value means goal is below
+        #  y_speed, - high value means spaceship is moving down
+        #  x_speed  - high value means spaceship is moving right
+        # ]
+        if type(x) == str:
+            x = [float(x_) for x_ in x.split(',')]
+            print('x = ', x)
+            # import pdb; pdb.set_trace() 
+        #return [0.1, 0.2]
+        x_normalized = self.normalize([x], np.array(self.normalization_parameters['x_means']), np.array(self.normalization_parameters['x_stds']))[0]
+        # import pdb; pdb.set_trace()
+        # x_normalized = self.min_max_normalization([x], np.array(self.normalization_parameters['x_mins']), np.array(self.normalization_parameters['x_maxs']))[0]
+        y_normalized = self.forward_propagation(x_normalized)
+        #y = self.min_max_unnormalization(y_normalized, self.normalization_parameters['y_mins'], self.normalization_parameters['y_maxs'])
+        #y = self.unnormalize([y_normalized], self.normalization_parameters['y_means'], self.normalization_parameters['y_stds'])[0]
+        # if verbose:
+        #     print('x =', x, 'x_normalized =', x_normalized)
+        #     print('y =', y, 'y_normalized =', y_normalized)
+        # print('y =', y)
+        return y_normalized
+    
+    def load_weights_from_file(self, filename='weights.txt'):
+        with open(filename, 'r') as f:
+            weights = json.loads(f.read())
+        for i, layer in enumerate(self.layers):
+            for j, neuron in enumerate(layer.neurons):
+                neuron.weights = weights[i][j]
+    
+    def save_weights_to_file(self, filename='weights.json'):
+        weights = []
+        for layer in self.layers:
+            layer_weights = []
+            for neuron in layer.neurons:
+                layer_weights.append(neuron.weights)
+            weights.append(layer_weights)
+        with open(filename, 'w') as f:
+            f.write(json.dumps(weights))
+    
+    def save_normalization_parameters(self, filename='normalization_parameters.json'):
+        with open(filename, 'w') as f:
+            f.write(json.dumps(self.normalization_parameters))
+            print('normalization_parameters =', self.normalization_parameters)
+        
+    def load_normalization_parameters(self, filename='normalization_parameters.json'):
+        with open(filename, 'r') as f:
+            self.normalization_parameters = json.load(f)
+            print('normalization_parameters =', self.normalization_parameters)
+
+    # def min_max_normalization(self, A, min_, max_):
+    #     A = np.array(A)
+    #     return ((A - min_) / (max_ - min_)).tolist()
+    
+    # def min_max_unnormalization(self, A, min_, max_):
+    #     A = np.array(A)
+    #     min_ = np.array(min_)
+    #     max_ = np.array(max_)
+    #     return (A * (max_ - min_) + min_).tolist()
+
+    def normalize(self, A, means, stds):
+        A = np.array(A)
+        # means = np.array(means)
+        # stds = np.array(stds)
+        # return ((A) / stds).tolist()
+        return ((A - means) / stds).tolist()
+    
+    def unnormalize(self, A, means, stds):
+        A = np.array(A)
+        means = np.array(means)
+        stds = np.array(stds)
+        # return (A * stds).tolist()
+        return (A * stds + means).tolist()
+
+    # def normalize_data(self, X, Y, w_means, w_stds, y_means):
+    #     # normalize data
+    #     X = np.array(X)
+    #     Y = np.array(Y)
+    #     x_means = X.mean(axis=0)
+    #     y_means = Y.mean(axis=0)
+    #     x_stds = X.std(axis=0)
+    #     y_stds = Y.std(axis=0)
+    #     X = (X - x_means) / x_stds
+    #     Y = (Y - y_means) / y_stds
+
+    #     self.normalization_parameters = {'w_means': w_means, 'y_means': y_means, 'w_stds': w_stds, 'y_stds': y_stds}
+    #     return X.tolist(), Y.tolist()
 
 if __name__ == '__main__':
     import csv
     import matplotlib.pyplot as plt
 
     USE_CSV = True
-        
+
+    def shuffle_data(X, Y):
+        X = np.array(X)
+        Y = np.array(Y)
+        indices = np.arange(X.shape[0])
+        np.random.shuffle(indices)
+        return X[indices].tolist(), Y[indices].tolist()
+
     # preprocess X,Y data
     def preprocess_data(X, Y):
         dividers = [0 for _ in range(len(X[0]))]
@@ -214,7 +360,8 @@ if __name__ == '__main__':
     if USE_CSV:
         # in this case the input layer will have 2 neurons and hidden layer will have 3 previous neurons
         X, Y = read_csv()
-        X, Y = preprocess_data(X, Y)
+        #X, Y, w_means, y_means = normalize_data(X, Y)
+        X, Y = shuffle_data(X, Y)
     else:
         # in this case the input layer will have 1 neuron and hidden layer will have 2 previous neurons
         X = [
@@ -227,8 +374,21 @@ if __name__ == '__main__':
         ]
 
     # import pdb; pdb.set_trace()
-    nn = NeuralNetHolder(learning_rate=0.02, momentum=0.1)
-    costs = nn.train(X, Y, epochs=40)
+    nn = NeuralNetHolder(learning_rate=0.01, momentum=0.1)
+    # nn.load_weights_from_file(filename='weights.json')
+    # import pdb; pdb.set_trace()
+    costs = nn.train(deepcopy(X), deepcopy(Y), epochs=110) # 401
+
+    with open('predictions.txt', 'w') as f:
+        for x in X:
+            # import pdb; pdb.set_trace()
+            f.write(str(nn.predict(x, verbose=False)) + '\n')
+
+    for x in X[:10]:
+        print('x =', x, 'y =', nn.predict(x, verbose=False))
+
+    nn.save_weights_to_file(filename='weights.json')
+    nn.save_normalization_parameters(filename='normalization_parameters.json')
     # plot costs
     plt.plot(costs)
     plt.show()

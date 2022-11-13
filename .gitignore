@@ -31,3 +31,5 @@ out
 *.xml
 *.xlsx
 *.iml
+
+__pycache__/

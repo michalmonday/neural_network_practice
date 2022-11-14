@@ -2,14 +2,8 @@
 from Layer import Layer
 import math
 import json
-import numpy as np
 from copy import deepcopy
-import tensorflow as tf
-import numpy as np
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Flatten
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import Activation
+import random
 
 
 # tanh
@@ -198,42 +192,53 @@ class NeuralNetHolder:
             for neuron in self.layers[i].neurons:
                 neuron.update_weights(epsilon_regularisation=0.001) #neuron.weights = list(neuron.new_weights)
 
+    def compute_means(self, A):
+        return [ sum(a) / len(a) for a in zip(*A) ]
+    
+    def compute_standard_deviations(self, A, means):
+        return [ math.sqrt(sum((a[i] - means[i])**2 for a in A) / len(A)) for i in range(len(A[0])) ]
 
     def train(self, X, Y, epochs=1):
-
         # x_mins = np.min(X, axis=0)
         # x_maxs = np.max(X, axis=0)
         # y_mins = np.min(Y, axis=0)
         # y_maxs = np.max(Y, axis=0)
 
-        x_means = np.mean(X, axis=0)
-        x_stds = np.std(X, axis=0)
-        y_means = np.mean(Y, axis=0)
-        y_stds = np.std(Y, axis=0)
+        x_means = self.compute_means(X)
+        x_stds = self.compute_standard_deviations(X, x_means)
+        y_means = self.compute_means(Y)
+        y_stds = self.compute_standard_deviations(Y, y_means)
+
+        # x_means_np = np.mean(X, axis=0)
+        # x_stds_np = np.std(X, axis=0)
+        # y_means_np = np.mean(Y, axis=0)
+        # y_stds_np = np.std(Y, axis=0)
+        # import pdb; pdb.set_trace()
+
         X_orig = deepcopy(X)
         Y_orig = deepcopy(Y)
-        # X = self.min_max_normalization(deepcopy(X), x_mins, x_maxs)
-        # Y = self.min_max_normalization(deepcopy(Y), y_mins, y_maxs)
         X = self.normalize(X, x_means, x_stds)
         Y = self.normalize(Y, y_means, y_stds)
-        #self.normalization_parameters = {'x_mins': x_mins.tolist(), 'x_maxs': x_maxs.tolist(), 'y_mins': y_mins.tolist(), 'y_maxs': y_maxs.tolist()}
-        self.normalization_parameters = {'x_means': x_means.tolist(), 'x_stds': x_stds.tolist(), 'y_means': y_means.tolist(), 'y_stds': y_stds.tolist()}
+        # self.normalization_parameters = {'x_means': x_means.tolist(), 'x_stds': x_stds.tolist(), 'y_means': y_means.tolist(), 'y_stds': y_stds.tolist()}
+        self.normalization_parameters = {'x_means': x_means, 'x_stds': x_stds, 'y_means': y_means, 'y_stds': y_stds}
         costs = []
         # epoch is a single pass through the entire training dataset
         for epoch_index in range(epochs):
             epoch_cost = 0
             for i, (x, y, y_orig) in enumerate(zip(X, Y, Y_orig)):
-                # results = self.forward_propagation(x)
                 y_pred = self.forward_propagation(x)
-                results = self.unnormalize(y_pred, y_means, y_stds)
-                #print('results', results)
-                errors = [ o - r for r,o in zip(results, y) ]
+                results = self.unnormalize([y_pred], y_means, y_stds)[0]
+                # errors = [ o - r for r,o in zip(results, y) ]
                 self.backward_propagation(y)
+
+                #import pdb; pdb.set_trace()
 
                 # print('results =', results)
                 # print('y =', y)
                 # print('errors =', errors)
                 # print('self.predict(x) =', self.predict(X_orig[i]))
+                if type(results[0]) != float or type(y_orig[0]) != float:
+                    import pdb; pdb.set_trace()
                 epoch_cost += abs(cost(results, y_orig) / len(X))
                 # print('cost =', cost(results, y_orig))
             if epoch_index > 1 and epoch_cost > costs[-1]:
@@ -245,38 +250,23 @@ class NeuralNetHolder:
         return costs
     
     def predict(self, x, verbose=True):
-        ''' Order of data collectio Y is: vertical velocity at index 2 and horizontal velocity at index 3
-            BUT: order of data collection X is: horizontal velocity at index 0 and vertical velocity at index 1. 
-            It's almost like a trap for students to see if they can read the code... 
-            '''
-
         # WRITE CODE TO PROCESS INPUT ROW AND PREDICT X_Velocity and Y_Velocity
         # [
         #  x_dist,  - high value means goal is on the right
         #  y_dist,  - high value means goal is below
-        #  y_speed, - high value means spaceship is moving down
         #  x_speed  - high value means spaceship is moving right
+        #  y_speed, - high value means spaceship is moving down
         # ]
-
         if type(x) == str:
             x = [float(x_) for x_ in x.split(',')]
             print('x = ', x)
-        #return [0.1, 0.2]
-        #y = self.model.predict(np.array([x]))[0].tolist()
-        #return y
-        x_normalized = self.normalize([x], np.array(self.normalization_parameters['x_means']), np.array(self.normalization_parameters['x_stds']))[0]
-        # import pdb; pdb.set_trace()
-        # x_normalized = self.min_max_normalization([x], np.array(self.normalization_parameters['x_mins']), np.array(self.normalization_parameters['x_maxs']))[0]
+        x_normalized = self.normalize([x], self.normalization_parameters['x_means'], self.normalization_parameters['x_stds'])[0]
         y_normalized = self.forward_propagation(x_normalized)
-        #y = self.min_max_unnormalization(y_normalized, self.normalization_parameters['y_mins'], self.normalization_parameters['y_maxs'])
         y = self.unnormalize([y_normalized], self.normalization_parameters['y_means'], self.normalization_parameters['y_stds'])[0]
         if verbose:
             print('x =', x, 'x_normalized =', x_normalized)
             print('y =', y, 'y_normalized =', y_normalized)
-        # print('y =', y)
         return y
-        
-        #return list(reversed(y))
     
     def load_weights_from_file(self, filename='weights.txt'):
         with open(filename, 'r') as f:
@@ -305,43 +295,20 @@ class NeuralNetHolder:
             self.normalization_parameters = json.load(f)
             print('normalization_parameters =', self.normalization_parameters)
 
-    # def min_max_normalization(self, A, min_, max_):
-    #     A = np.array(A)
-    #     return ((A - min_) / (max_ - min_)).tolist()
-    
-    # def min_max_unnormalization(self, A, min_, max_):
-    #     A = np.array(A)
-    #     min_ = np.array(min_)
-    #     max_ = np.array(max_)
-    #     return (A * (max_ - min_) + min_).tolist()
-
     def normalize(self, A, means, stds):
-        A = np.array(A)
-        # means = np.array(means)
-        # stds = np.array(stds)
-        # return ((A) / stds).tolist()
-        return ((A - means) / stds).tolist()
+        A_norm = []
+        for a in A:
+            a_norm = [(a[i] - means[i]) / stds[i] for i in range(len(a))]
+            A_norm.append(a_norm)
+        return A_norm
     
-    def unnormalize(self, A, means, stds):
-        A = np.array(A)
-        means = np.array(means)
-        stds = np.array(stds)
-        # return (A * stds).tolist()
-        return (A * stds + means).tolist()
+    def unnormalize(self, A_norm, means, stds):
+        A = []
+        for a in A_norm:
+            a = [(a[i] * stds[i]) + means[i] for i in range(len(a))]
+            A.append(a)
+        return A
 
-    # def normalize_data(self, X, Y, w_means, w_stds, y_means):
-    #     # normalize data
-    #     X = np.array(X)
-    #     Y = np.array(Y)
-    #     x_means = X.mean(axis=0)
-    #     y_means = Y.mean(axis=0)
-    #     x_stds = X.std(axis=0)
-    #     y_stds = Y.std(axis=0)
-    #     X = (X - x_means) / x_stds
-    #     Y = (Y - y_means) / y_stds
-
-    #     self.normalization_parameters = {'w_means': w_means, 'y_means': y_means, 'w_stds': w_stds, 'y_stds': y_stds}
-    #     return X.tolist(), Y.tolist()
 
 if __name__ == '__main__':
     import csv
@@ -351,11 +318,14 @@ if __name__ == '__main__':
     USE_CSV = True
 
     def shuffle_data(X, Y):
-        X = np.array(X)
-        Y = np.array(Y)
-        indices = np.arange(X.shape[0])
-        np.random.shuffle(indices)
-        return X[indices].tolist(), Y[indices].tolist()
+        X_shuffled = []
+        Y_shuffled = []
+        indices = list(range(len(X)))
+        random.shuffle(indices)
+        for i in indices:
+            X_shuffled.append(X[i])
+            Y_shuffled.append(Y[i])
+        return X_shuffled, Y_shuffled
 
     # preprocess X,Y data
     def preprocess_data(X, Y):
@@ -383,7 +353,6 @@ if __name__ == '__main__':
     if USE_CSV:
         # in this case the input layer will have 2 neurons and hidden layer will have 3 previous neurons
         X, Y = read_csv()
-        #X, Y, w_means, y_means = normalize_data(X, Y)
         X, Y = shuffle_data(X, Y)
     else:
         # in this case the input layer will have 1 neuron and hidden layer will have 2 previous neurons
@@ -396,65 +365,22 @@ if __name__ == '__main__':
             #(4,3)
         ]
 
-    # X = np.array(X)
-    # Y = np.array(Y)
-    # print("Feature matrix:", X.shape)
-    # print("Feature matrix:", Y.shape)
-    # #import pdb; pdb.set_trace()
-
-    def normalize_data_tensorflow(X, Y):
-        # normalize data
-        x_means = X.mean(axis=0)
-        y_means = Y.mean(axis=0)
-        x_stds = X.std(axis=0)
-        y_stds = Y.std(axis=0)
-        X = (X - x_means) / x_stds
-        Y = (Y - y_means) / y_stds
-
-        return X, Y
-
-    # normalize X,Y
-
-    #model = Sequential([
-    #    # dense layer 1
-    #    Dense(20, activation='sigmoid', bias_initializer='random_uniform', kernel_initializer='random_uniform' , input_shape=(2,), use_bias=True),
-
-    #    # output layer
-    #    Dense(2, activation='linear', bias_initializer='random_uniform', kernel_initializer='random_uniform', use_bias=True),  
-    #])
-    #model.compile(optimizer='adam',
-    #          loss='mean_squared_error',
-    #          metrics=['accuracy'])
-
-    #model.fit(X, Y, epochs=1000, 
-    #      batch_size=5000, 
-    #      validation_split=0.2)
-    #results = model.evaluate(X,  Y, verbose = 0)
-    #model.save('model.h5')
-    #import pdb; pdb.set_trace()
-    #print('test loss, test acc:', results)
-
-    #exit()
-
-    # import pdb; pdb.set_trace()
     nn = NeuralNetHolder(learning_rate=0.04, momentum=0.05)
 
     # nn.load_weights_from_file(filename='weights.json')
-    # import pdb; pdb.set_trace()
     costs = nn.train(deepcopy(X), deepcopy(Y), epochs=100) # 401
 
     with open('predictions.txt', 'w') as f:
         for x in X:
-            # import pdb; pdb.set_trace()
             f.write(str(nn.predict(x, verbose=False)) + '\n')
 
     for x in X[:10]:
         print('x =', x, 'y =', nn.predict(x, verbose=False))
+
+    import pdb; pdb.set_trace()
 
     nn.save_weights_to_file(filename='weights.json')
     nn.save_normalization_parameters(filename='normalization_parameters.json')
     # plot costs
     plt.plot(costs)
     plt.show()
-
-    #print( nn.predict([1]) )

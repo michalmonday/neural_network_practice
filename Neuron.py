@@ -11,6 +11,7 @@ class Neuron:
 		self.activation_value = activation_value
 		if weights_values is None:
 			self.weights = [ -0.5 + random.uniform(0, 1) for _ in range(weights_count) ]
+			# self.weights = [ random.uniform(0, 1)/10 for _ in range(weights_count) ]
 		else:
 			self.weights = list(weights_values)
 		self.is_bias = is_bias
@@ -42,7 +43,10 @@ class Neuron:
 		
 		#sum_of_products = sum( self.multiply_weights(prev_layer) )
 		if self.activation_function is not None:
-			self.activation_value = self.activation_function(sum_of_products)
+			try:
+				self.activation_value = self.activation_function(sum_of_products)
+			except OverflowError:
+				print(f'OverflowError: sum_of_products = {sum_of_products}')
 		else:
 			self.activation_value = sum_of_products
 

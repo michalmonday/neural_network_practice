@@ -1,9 +1,38 @@
+# class Person:
+#     def __init__(self):
+#         self.name = 'John'
+#         self.age = 25
+#         self.height = 180
+    
+#     def go_library(self):
+#         if self.age > 30: 
+#             self.walk_slowly(20)
+#         else:
+#             self.walk_fast(10)
+
+#     def walk_slowly(self, n):
+#         print('walking slowly')
+    
+#     def walk_fast(self, n):
+#         print('walking fast')
+
+#     def print_self(self):
+#         print(self)
+# p = Person()
+
+# print(p)
+# print(p.print_self())
+
+# exit()
+
+
 #from Neuron import Neuron
 from Layer import Layer
 import math
 import json
 from copy import deepcopy
 import random
+import numpy as np
 
 
 # tanh
@@ -15,7 +44,9 @@ def rounded_sigmoid(sum_of_products, lambda_=0.8):
     numbers were rounded on purpose for easier presentation on paper. '''
     return round(1 / (1 + math.exp(-lambda_*sum_of_products)), 2)
 
-def sigmoid(sum_of_products, lambda_=0.8):
+def sigmoid(sum_of_products, lambda_=1):
+    sum_of_products = min(500, sum_of_products)
+    sum_of_products = max(-500, sum_of_products)
     return 1 / (1 + math.exp(-lambda_*sum_of_products))
 
 def linear(sum_of_products):
@@ -33,6 +64,16 @@ def show_network(layers):
     print('\n')
 
 def cost(results, observations):
+    ''' rmse'''
+    c = 0
+    for r, o in zip(results, observations):
+        try:
+            c += (o - r) **2 
+        except OverflowError:
+            print('overflow when calculating cost, r={}, o={}'.format(r, o))            
+    return math.sqrt(c / len(results))
+
+def cost2(results, observations):
     ''' The purpose of cost function is to measure how good the network is at predicting. 
     The lower the cost, the better the network is at predicting. We can use this value to
     decide when to stop training the network. '''
@@ -48,7 +89,7 @@ def cost(results, observations):
     #return c /2
 
 # root mean squared error
-def cost2(results, observations):
+def cost3(results, observations):
     c = 0
     for r, o in zip(results, observations):
         c += (o - r) **2 
@@ -121,10 +162,14 @@ class NeuralNetHolder:
 
            # hidden layer
            #Layer(prev_neurons_count=3, neurons_count=33, add_bias=True, activation_function=sigmoid),
-           Layer(prev_neurons_count=3, neurons_count=24, add_bias=True, activation_function=tanh),
+        #    Layer(prev_neurons_count=3, neurons_count=24, add_bias=True, activation_function=tanh),
+           Layer(prev_neurons_count=3, neurons_count=34, add_bias=True, activation_function=sigmoid),
+        #    Layer(prev_neurons_count=3, neurons_count=12, add_bias=True, activation_function=tanh),
 
            # output layer
-           Layer(prev_neurons_count=25, neurons_count=2, add_bias=False, activation_function=linear)
+        #    Layer(prev_neurons_count=25, neurons_count=2, add_bias=False, activation_function=linear)
+           Layer(prev_neurons_count=35, neurons_count=2, add_bias=False, activation_function=linear)
+        #    Layer(prev_neurons_count=13, neurons_count=2, add_bias=False, activation_function=linear)
            ]
         self.LAST_LAYER_INDEX = len(self.layers) - 1
 
@@ -167,7 +212,7 @@ class NeuralNetHolder:
         # set errors of the last layer before beginning backpropagation
         for i, (neuron, o) in enumerate(zip(self.layers[-1].neurons, y)):
             # r = result (prediction), o = observation
-            self.layers[-1].neurons[i].error = o - neuron.activation_value
+            neuron.error = o - neuron.activation_value
 
         # backpropagation (updating weights based on their prediction accuracy)
         # for each layer except input layer
@@ -177,6 +222,7 @@ class NeuralNetHolder:
                 # for other layers, error is measured using the sum of errors (multiplied by weights) of neurons in the next layer
                 if i == self.LAST_LAYER_INDEX:
                     neuron.error = y[j] - neuron.activation_value 
+                    # neuron.error = neuron.activation_value - y[j] 
                 else:
                     neuron.error =  self.learning_rate * neuron.activation_value * (1-neuron.activation_value) * sum(n.weights[j] * n.error for n in self.layers[i+1].neurons)
                 
@@ -190,7 +236,7 @@ class NeuralNetHolder:
         # Latch all neurons weights
         for i in range(len(self.layers)-1, 0, -1):
             for neuron in self.layers[i].neurons:
-                neuron.update_weights(epsilon_regularisation=0.001) #neuron.weights = list(neuron.new_weights)
+                neuron.update_weights(epsilon_regularisation=0.1) #neuron.weights = list(neuron.new_weights)
 
     def compute_means(self, A):
         return [ sum(a) / len(a) for a in zip(*A) ]
@@ -198,7 +244,7 @@ class NeuralNetHolder:
     def compute_standard_deviations(self, A, means):
         return [ math.sqrt(sum((a[i] - means[i])**2 for a in A) / len(A)) for i in range(len(A[0])) ]
 
-    def train(self, X, Y, epochs=1):
+    def train(self, X, Y, validation_X=[], validation_Y=[], epochs=1):
         # x_mins = np.min(X, axis=0)
         # x_maxs = np.max(X, axis=0)
         # y_mins = np.min(Y, axis=0)
@@ -219,12 +265,32 @@ class NeuralNetHolder:
         Y_orig = deepcopy(Y)
         X = self.normalize(X, x_means, x_stds)
         Y = self.normalize(Y, y_means, y_stds)
+        import pdb; pdb.set_trace()
+
+        validation_X_orig = deepcopy(X)
+        validation_Y_orig = deepcopy(Y)
+        on_X = self.normalize(validation_X, x_means, x_stds)
+        validation_Y = self.normalize(validation_Y, y_means, y_stds)
         # self.normalization_parameters = {'x_means': x_means.tolist(), 'x_stds': x_stds.tolist(), 'y_means': y_means.tolist(), 'y_stds': y_stds.tolist()}
         self.normalization_parameters = {'x_means': x_means, 'x_stds': x_stds, 'y_means': y_means, 'y_stds': y_stds}
         costs = []
+        validation_costs = []
+        learning_rate_decreases = []
         # epoch is a single pass through the entire training dataset
         for epoch_index in range(epochs):
             epoch_cost = 0
+            validation_epoch_cost = 0
+
+            # calculate validation data cost
+            for i, (x, y, y_orig) in enumerate(zip(validation_X, validation_Y, validation_Y_orig)):
+                y_pred = self.forward_propagation(x)
+                results = self.unnormalize([y_pred], y_means, y_stds)[0]
+                validation_epoch_cost += abs(cost(results, y_orig) / len(validation_X))
+            if epoch_index > 1 and validation_epoch_cost > validation_costs[-1]:
+                print('Early stopping because validation cost is increasing')
+                # return costs, validation_costs, learning_rate_decreases
+            validation_costs.append(validation_epoch_cost)
+
             for i, (x, y, y_orig) in enumerate(zip(X, Y, Y_orig)):
                 y_pred = self.forward_propagation(x)
                 results = self.unnormalize([y_pred], y_means, y_stds)[0]
@@ -239,16 +305,24 @@ class NeuralNetHolder:
                 # print('self.predict(x) =', self.predict(X_orig[i]))
                 if type(results[0]) != float or type(y_orig[0]) != float:
                     import pdb; pdb.set_trace()
-                epoch_cost += abs(cost(results, y_orig) / len(X))
+                try:
+                    epoch_cost += abs(cost(results, y_orig) / len(X))
+                except OverflowError:
+                    print(f'OverflowError, results = {results}, y = {y_orig}')
+                    
                 # print('cost =', cost(results, y_orig))
             if epoch_index > 1 and epoch_cost > costs[-1]:
                 self.learning_rate *= 0.8
-            print(f'{epoch_index+1}. cost =', epoch_cost)
+                learning_rate_decreases.append(1)
+            else:
+                learning_rate_decreases.append(0)
             costs.append(epoch_cost)
-            #print(f'{epoch_index}, ', end='')
-        # import pdb; pdb.set_trace()
-        return costs
-    
+
+            show_network(self.layers)
+            print()
+            print(f'{epoch_index+1}. cost = {epoch_cost}, validation cost = {validation_epoch_cost}')
+        return costs, validation_costs, learning_rate_decreases
+
     def predict(self, x, verbose=True):
         # WRITE CODE TO PROCESS INPUT ROW AND PREDICT X_Velocity and Y_Velocity
         # [
@@ -259,6 +333,7 @@ class NeuralNetHolder:
         # ]
         if type(x) == str:
             x = [float(x_) for x_ in x.split(',')]
+            x[0] -= 20.0
             print('x = ', x)
         x_normalized = self.normalize([x], self.normalization_parameters['x_means'], self.normalization_parameters['x_stds'])[0]
         y_normalized = self.forward_propagation(x_normalized)
@@ -337,11 +412,38 @@ if __name__ == '__main__':
             for j, x_i in enumerate(x):
                 X[i][j] = x_i / dividers[j]
         return X, Y
+
+    def clean_data(X, Y):
+        new_X = []
+        new_Y = []
+        for i, (x, y) in enumerate(zip(X, Y)):
+            # positive x[0] means spaceship is on the left from the goal
+            # positive x[1] means spaceship is above the goal (it's always above)
+
+            # positive y[0] means spaceship is moving right
+            # positive y[1] means spaceship is moving down
+
+            x[0] -= 20.0
+
+
+            if x[0] < 0 and y[0] > 0:
+                continue
+            if x[0] > 0 and y[0] < 0:
+                continue
+
+            # don't let it move down when it's far away (remove these datapoints)
+            if abs(x[0]) > 37 and y[1] > 0:
+                continue
+            new_X.append(x)
+            new_Y.append(y) 
+        return new_X, new_Y
+
         
 
     def read_csv():
         X, Y = [], []
         with open('ce889_dataCollection.csv', 'r') as f:
+        # with open('ce889_dataCollection_full.csv', 'r') as f:
             reader = csv.reader(f)
             data = list(reader)
         for row in data:
@@ -354,6 +456,7 @@ if __name__ == '__main__':
         # in this case the input layer will have 2 neurons and hidden layer will have 3 previous neurons
         X, Y = read_csv()
         X, Y = shuffle_data(X, Y)
+        X, Y = clean_data(X, Y)
     else:
         # in this case the input layer will have 1 neuron and hidden layer will have 2 previous neurons
         X = [
@@ -365,22 +468,60 @@ if __name__ == '__main__':
             #(4,3)
         ]
 
-    nn = NeuralNetHolder(learning_rate=0.04, momentum=0.05)
+    # split data into training and validation sets
+    validation_split = 0.15
+    validation_index = int(len(X) * validation_split)
+    validation_X = X[:validation_index]
+    validation_Y = Y[:validation_index]
+    X = X[validation_index:]
+    Y = Y[validation_index:]
+
+    nn = NeuralNetHolder(learning_rate=0.001, momentum=0.01)
 
     # nn.load_weights_from_file(filename='weights.json')
-    costs = nn.train(deepcopy(X), deepcopy(Y), epochs=100) # 401
+    costs, validation_costs, learning_rate_decreases = nn.train(
+        deepcopy(X),
+        deepcopy(Y),
+        validation_X=validation_X,
+        validation_Y=validation_Y,
+        epochs=50
+        #epochs=100
+        ) # 401
 
     with open('predictions.txt', 'w') as f:
         for x in X:
             f.write(str(nn.predict(x, verbose=False)) + '\n')
 
-    for x in X[:10]:
+    for x in X[:3]:
         print('x =', x, 'y =', nn.predict(x, verbose=False))
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
     nn.save_weights_to_file(filename='weights.json')
     nn.save_normalization_parameters(filename='normalization_parameters.json')
     # plot costs
-    plt.plot(costs)
+    plt.plot(costs, label='training costs')
+    plt.plot(validation_costs, label='validation costs')
+    plt.plot(learning_rate_decreases, label='learning rate decreases')
     plt.show()
+
+
+
+
+
+
+
+    def training(self, training_data):
+        predictions = self.predict(training_data)
+        errors = predictions - ground_truth
+        self.backprop(errors)
+
+    def predict(self, input_row):
+        return [-1,-1]
+
+    def backprop(self):
+        pass
+    
+
+
+

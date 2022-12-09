@@ -265,7 +265,7 @@ class NeuralNetHolder:
         Y_orig = deepcopy(Y)
         X = self.normalize(X, x_means, x_stds)
         Y = self.normalize(Y, y_means, y_stds)
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         validation_X_orig = deepcopy(X)
         validation_Y_orig = deepcopy(Y)
@@ -476,7 +476,7 @@ if __name__ == '__main__':
     X = X[validation_index:]
     Y = Y[validation_index:]
 
-    nn = NeuralNetHolder(learning_rate=0.001, momentum=0.01)
+    nn = NeuralNetHolder(learning_rate=0.04, momentum=0.4)
 
     # nn.load_weights_from_file(filename='weights.json')
     costs, validation_costs, learning_rate_decreases = nn.train(
@@ -503,6 +503,7 @@ if __name__ == '__main__':
     plt.plot(costs, label='training costs')
     plt.plot(validation_costs, label='validation costs')
     plt.plot(learning_rate_decreases, label='learning rate decreases')
+    plt.legend()
     plt.show()
 
 

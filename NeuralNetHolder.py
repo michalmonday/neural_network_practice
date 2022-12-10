@@ -28,26 +28,15 @@
 
 #from Neuron import Neuron
 from Layer import Layer
-import math
 import json
 from copy import deepcopy
 import random
 import numpy as np
 
-
-# tanh
-def tanh(sum_of_products):
-    return math.tanh(sum_of_products)
-
-def rounded_sigmoid(sum_of_products, lambda_=0.8):
-    ''' Created just to make results more similar to provided example where
-    numbers were rounded on purpose for easier presentation on paper. '''
-    return round(1 / (1 + math.exp(-lambda_*sum_of_products)), 2)
-
 def sigmoid(sum_of_products, lambda_=1):
     sum_of_products = min(500, sum_of_products)
     sum_of_products = max(-500, sum_of_products)
-    return 1 / (1 + math.exp(-lambda_*sum_of_products))
+    return 1 / (1 + np.exp(-lambda_*sum_of_products))
 
 def linear(sum_of_products):
     return sum_of_products
@@ -71,44 +60,7 @@ def cost(results, observations):
             c += (o - r) **2 
         except OverflowError:
             print('overflow when calculating cost, r={}, o={}'.format(r, o))            
-    return math.sqrt(c / len(results))
-
-def cost2(results, observations):
-    ''' The purpose of cost function is to measure how good the network is at predicting. 
-    The lower the cost, the better the network is at predicting. We can use this value to
-    decide when to stop training the network. '''
-    c = 0
-    for r, o in zip(results, observations):
-        # abs is used to make sure that the cost is always positive
-        # otherwise a positive error would cancel out a negative error
-        # (e.g. if one output neuron error is -2 and the other is +2, 
-        # the total error would be 0 instead of 4)
-        c += abs(o - r)
-        #c += (o - r) **2 
-    return c 
-    #return c /2
-
-# root mean squared error
-def cost3(results, observations):
-    c = 0
-    for r, o in zip(results, observations):
-        c += (o - r) **2 
-    return math.sqrt(c / len(results))
-
-## binary cross entropy cost function
-#def binary_cross_entropy_cost(results, observations):
-#    # https://stats.stackexchange.com/questions/154879/a-list-of-cost-functions-used-in-neural-networks-alongside-applications
-#    c = 0
-#    for r, o in zip(results, observations):
-#        c += (o * math.log(r) + (1 - o) * math.log(1 - r))
-#    return c
-#
-## quadratic cost function
-#def quadratic_cost(results, observations):
-#    c = 0
-#    for r, o in zip(results, observations):
-#        c += (o - r)**2
-#    return c / 2
+    return np.sqrt(c / len(results))
 
 class NeuralNetHolder:
     '''  x[0] = first input value to the first layer (e.g. integer or float)
@@ -198,7 +150,6 @@ class NeuralNetHolder:
                 # of "layer.neurons[1:0]" indexing because the last layer does not have a bias neuron. 
                 if neuron.is_bias:
                     continue
-                #import pdb; pdb.set_trace()
                 neuron.activate(self.layers[i])
 
         # activation values of the last layer are the results of the neural network
@@ -242,7 +193,7 @@ class NeuralNetHolder:
         return [ sum(a) / len(a) for a in zip(*A) ]
     
     def compute_standard_deviations(self, A, means):
-        return [ math.sqrt(sum((a[i] - means[i])**2 for a in A) / len(A)) for i in range(len(A[0])) ]
+        return [ np.sqrt(sum((a[i] - means[i])**2 for a in A) / len(A)) for i in range(len(A[0])) ]
 
     def train(self, X, Y, validation_X=[], validation_Y=[], epochs=1):
         # x_mins = np.min(X, axis=0)
@@ -259,13 +210,11 @@ class NeuralNetHolder:
         # x_stds_np = np.std(X, axis=0)
         # y_means_np = np.mean(Y, axis=0)
         # y_stds_np = np.std(Y, axis=0)
-        # import pdb; pdb.set_trace()
 
         X_orig = deepcopy(X)
         Y_orig = deepcopy(Y)
         X = self.normalize(X, x_means, x_stds)
         Y = self.normalize(Y, y_means, y_stds)
-        # import pdb; pdb.set_trace()
 
         validation_X_orig = deepcopy(X)
         validation_Y_orig = deepcopy(Y)
@@ -297,14 +246,11 @@ class NeuralNetHolder:
                 # errors = [ o - r for r,o in zip(results, y) ]
                 self.backward_propagation(y)
 
-                #import pdb; pdb.set_trace()
 
                 # print('results =', results)
                 # print('y =', y)
                 # print('errors =', errors)
                 # print('self.predict(x) =', self.predict(X_orig[i]))
-                if type(results[0]) != float or type(y_orig[0]) != float:
-                    import pdb; pdb.set_trace()
                 try:
                     epoch_cost += abs(cost(results, y_orig) / len(X))
                 except OverflowError:
@@ -425,14 +371,13 @@ if __name__ == '__main__':
 
             x[0] -= 20.0
 
-
             if x[0] < 0 and y[0] > 0:
                 continue
             if x[0] > 0 and y[0] < 0:
                 continue
 
             # don't let it move down when it's far away (remove these datapoints)
-            if abs(x[0]) > 37 and y[1] > 0:
+            if abs(x[0]) > 50 and y[1] > 0:
                 continue
             new_X.append(x)
             new_Y.append(y) 
@@ -495,8 +440,6 @@ if __name__ == '__main__':
     for x in X[:3]:
         print('x =', x, 'y =', nn.predict(x, verbose=False))
 
-    # import pdb; pdb.set_trace()
-
     nn.save_weights_to_file(filename='weights.json')
     nn.save_normalization_parameters(filename='normalization_parameters.json')
     # plot costs
@@ -505,24 +448,4 @@ if __name__ == '__main__':
     plt.plot(learning_rate_decreases, label='learning rate decreases')
     plt.legend()
     plt.show()
-
-
-
-
-
-
-
-    def training(self, training_data):
-        predictions = self.predict(training_data)
-        errors = predictions - ground_truth
-        self.backprop(errors)
-
-    def predict(self, input_row):
-        return [-1,-1]
-
-    def backprop(self):
-        pass
-    
-
-
 
